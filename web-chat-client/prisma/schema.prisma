@@ -1,0 +1,83 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  name      String
+  password  String
+  avatar    String?
+  role      UserRole @default(USER)
+  isOnline  Boolean  @default(false)
+  lastSeen  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  sentMessages  Message[]         @relation("SentMessages")
+  chats         ChatParticipant[] @relation("UserChats")
+  createdGroups Chat[]            @relation("GroupCreator")
+
+  @@map("users")
+}
+
+model Chat {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  type      ChatType @default(DIRECT)
+  name      String? // Optional, required only for group chats
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  creatorId String?  @db.ObjectId // Only for group chats
+
+  // Relations
+  messages     Message[]         @relation("ChatMessages")
+  participants ChatParticipant[] @relation("ChatParticipants")
+  creator      User?             @relation("GroupCreator", fields: [creatorId], references: [id])
+
+  @@map("chats")
+}
+
+model ChatParticipant {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String   @db.ObjectId
+  chatId   String   @db.ObjectId
+  joinedAt DateTime @default(now())
+
+  // Relations
+  user User @relation("UserChats", fields: [userId], references: [id])
+  chat Chat @relation("ChatParticipants", fields: [chatId], references: [id])
+
+  @@unique([userId, chatId])
+  @@map("chatparticipants")
+}
+
+model Message {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  chatId    String   @db.ObjectId
+  senderId  String   @db.ObjectId
+  createdAt DateTime @default(now())
+
+  // Relations
+  chat   Chat @relation("ChatMessages", fields: [chatId], references: [id])
+  sender User @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([chatId, createdAt]) // Index for efficient querying by chat and creation date
+  @@map("messages")
+}
+
+enum ChatType {
+  DIRECT
+  GROUP
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
